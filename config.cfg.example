@@ -1,0 +1,10 @@
+[KEYS]
+CLIENT_KEY=
+API_KEY=<YOUR 128-CHARACTER YELP FUSION API KEY>
+
+[DATABASE]
+host=localhost
+database=mise
+username=<YOUR POSTGRES USER>
+password=<YOUR POSTGRES PASSWORD>
+port=5432

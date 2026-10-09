@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mise</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <div>
+      <h1>Mise</h1>
+      <p>Yelp &rarr; Postgres ETL</p>
+    </div>
+  </div>
+  <div class="pills">
+    <span class="pill {{ 'ok' if not db_error else 'bad' }}">
+      {{ 'postgres: ' + database if not db_error else 'postgres: unreachable' }}
+    </span>
+    <span class="pill {{ 'ok' if key_ready else 'warn' }}">
+      {{ 'API key: configured' if key_ready else 'API key: missing' }}
+    </span>
+  </div>
+</header>
+
+<main>
+  {% if error %}
+  <div class="banner bad">
+    <strong>Run failed.</strong> {{ error }}
+    {% if not key_ready %}<span class="hint">Add a 128-character Yelp Fusion key to <code>config.cfg</code>, or run with sample data.</span>{% endif %}
+  </div>
+  {% elif message %}
+  <div class="banner ok">{{ message }}</div>
+  {% endif %}
+
+  {% if db_error %}
+  <div class="banner bad"><strong>Database error.</strong> {{ db_error }}</div>
+  {% endif %}
+
+  <section class="card search">
+    <form method="post" action="{{ url_for('search') }}">
+      <div class="fields">
+        <label>
+          <span>Term</span>
+          <input name="term" value="{{ term }}" placeholder="food, restaurants, Starbucks" required>
+        </label>
+        <label>
+          <span>Location</span>
+          <input name="location" value="{{ location }}" placeholder="Montreal" required>
+        </label>
+        <label class="narrow">
+          <span>Price</span>
+          <select name="price">
+            {% for level, glyph in [('', 'any'), ('1', '$'), ('2', '$$'), ('3', '$$$'), ('4', '$$$$')] %}
+            <option value="{{ level }}" {{ 'selected' if price == level }}>{{ glyph }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="sources">
+        <label class="radio">
+          <input type="radio" name="source" value="live" {{ 'checked' if source == 'live' }}>
+          <span>Live Yelp API{% if not key_ready %} <em>(needs key)</em>{% endif %}</span>
+        </label>
+        <label class="radio">
+          <input type="radio" name="source" value="sample" {{ 'checked' if source != 'live' }}>
+          <span>Sample data <em>(offline)</em></span>
+        </label>
+        <button type="submit">Run pipeline</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="stats">
+    <div class="tile"><span class="value">{{ stats.total }}</span><span class="label">businesses</span></div>
+    <div class="tile"><span class="value">{{ stats.avg_rating if stats.avg_rating is not none else '--' }}</span><span class="label">avg rating</span></div>
+    <div class="tile"><span class="value">{{ '{:,}'.format(stats.reviews) }}</span><span class="label">reviews</span></div>
+    <div class="tile"><span class="value">{{ stats.categories }}</span><span class="label">categories</span></div>
+  </section>
+
+  {% if stats.with_coords %}
+  <section class="card map-card">
+    <div class="card-head"><h2>Locations</h2><span class="muted">{{ stats.with_coords }} of {{ stats.total }} geocoded</span></div>
+    <div id="map"></div>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-head">
+      <h2>yelp.business</h2>
+      <div class="card-actions">
+        <input id="filter" type="search" placeholder="Filter rows...">
+        <form method="post" action="{{ url_for('clear') }}" onsubmit="return confirm('Empty yelp.business?')">
+          <button class="ghost" type="submit" {{ 'disabled' if not stats.total }}>Clear table</button>
+        </form>
+      </div>
+    </div>
+    {% if rows %}
+    <div class="table-wrap">
+      <table id="rows">
+        <thead>
+          <tr>
+            <th data-type="text">Name</th>
+            <th data-type="number">Rating</th>
+            <th data-type="number">Reviews</th>
+            <th data-type="text">Price</th>
+            <th data-type="text">Categories</th>
+            <th data-type="text">Location</th>
+            <th data-type="text">Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td>
+              {% if row.url %}<a href="{{ row.url }}" target="_blank" rel="noopener">{{ row.business_name }}</a>
+              {% else %}{{ row.business_name }}{% endif %}
+            </td>
+            <td><span class="rating">{{ row.rating if row.rating is not none else '--' }}</span></td>
+            <td>{{ '{:,}'.format(row.review_count or 0) }}</td>
+            <td>{{ row.price if row.price else '--' }}</td>
+            <td class="muted">{{ row.categories }}</td>
+            <td class="muted small">{{ row.location }}</td>
+            <td class="muted small">{{ row.phone if row.phone else '--' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No rows yet. Run the pipeline above to load data.</p>
+    {% endif %}
+  </section>
+
+  <footer>
+    <code>{{ database }}</code> &middot; schema <code>yelp</code> &middot; table <code>business</code>
+    &middot; JSON at <a href="{{ url_for('api_businesses') }}">/api/businesses</a>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
